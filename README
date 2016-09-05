@@ -1,0 +1,33 @@
+20160906_LiteBIRDTESSensitivityCalc
+T. Matsumura, 2016-9-6
+
+This program is copied from 20151223_LB_HFT_Sensitivity.
+
+The directory, 20160906_LiteBIRDTESSensitivityCalc , should contain 
+  src
+  genrun
+  data
+
+In order to run the code, do the followings
+1) Specify the run parameters in src/global_par.py
+   The default file contains the nominal inputs prior to the CSR/PhaseA1. 
+   One can change the parameter set to run your own configurations. 
+
+2) Before execute the program, open genrun/run_example_LBTESSensCalc.sh, and change the path of dir. This dir should be specified as the directory which contains src, genrun, and data.
+
+3) cd to genrun/, and execute as
+   > ./run_example_LBTESSensCalc.sh
+   (if there is a permission issue, then do 
+   > chmod 744 run_example_LBTESSensCalc.sh
+
+3) output should be appears in data/
+
+note: the sensitivity of LFT and HFT cannot be run simultaneously at the moment, and so run them separately by specifying option_proposal in src/global_par.py
+
+Example1)
+> cd genrun
+> emacs run_example_LBTESSensCalc.sh  (change the path of dir in the editor)
+> chmod 744 run_example_LBTESSensCalc.sh
+> ./run_example_LBTESSensCalc.sh
+> cd ../data
+check US_MO_HFT_par1.txt and US_MO_HFT_par2.txt
