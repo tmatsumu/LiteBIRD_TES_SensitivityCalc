@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Change the following path, dir_out, to specify your output directory
-dir=/Users/tomotake_matsumura/Documents/Projects/LiteBIRD/20160906_LiteBIRDTESSensitivityCalc/
+#dir=/Users/tomotake_matsumura/Documents/Projects/LiteBIRD/20160906_LiteBIRDTESSensitivityCalc/
+dir=${PWD}/../
 
 python $dir/src/Mapping_speed_NdivNET2.py ${dir}/data/
 

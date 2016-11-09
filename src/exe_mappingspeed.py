@@ -81,7 +81,7 @@ def mapping_speed( dir_out):
     num_lensD = 400
     D_lens = (np.arange(num_lensD)+1)/float(num_lensD)*50.e-3 #; max 35mm
     Npix = lib_ms.pixel_count( D_lens, g.wafer_size, num_wafer)
-
+    #Npix = [57.,57.,57.,57.,57.,57., 148.,111.,148.,111.,148.,111]
 #    output = np.zeros((40,ntype))
     output_arr = {}
 
@@ -90,13 +90,21 @@ def mapping_speed( dir_out):
     output_arr = {}
     band_info = {}
     filename_arr = []
-
-    eff_arr = np.copy(g.ref_arr)
+    NEP_tot_w = []
+   
+#    eff_arr = np.copy(g.ref_arr)
+    eff_arr = np.copy(g.eff_arr)
     emiss_arr = np.copy(g.emiss_arr)
+    ref_arr = np.copy(g.ref_arr)
 #    print eff_arr
     for i in range(0, num_band):
         band_info['freq_GHz'] = g.freq_GHz_arr[i]
         band_info['bandwidth'] = g.bandwidth_arr[i]
+       # band_info['NEP_tot_w'] = g.NEP_tot_arr[i]
+        NEP_tot_w = g.NEP_tot_arr[i]
+
+       # print 'NEP_tot_w=',NEP_tot_w[i]
+        
         output = {}
         num_key_pre = 43
         output_d = np.zeros((num_key_pre,num_lensD))
@@ -123,6 +131,25 @@ def mapping_speed( dir_out):
                 emiss_arr[5] = 1. - np.exp(-2.*pi*freq_c/c*g.d_filter*g.n_filter*g.losstan_filter)
                 emiss_arr[6] = g.emiss_arr[6]
                 emiss_arr[7] = g.emiss_arr[7]
+
+            if g.option_proposal == 'US_CSR_LFT':
+                eff_arr[0] = 1. - g.ref_arr[0]
+                eff_arr[1] = 1. - g.ref_arr[1] - (1. - np.exp(-2.*pi*freq_c/c*g.d_lens*g.n_hwp*g.losstan_hwp))
+                eff_arr[2] = 1. - g.ref_arr[2]
+                eff_arr[3] = 1. - g.ref_arr[3] - g.mirror_abs
+                eff_arr[4] = 1. - g.ref_arr[4] - g.mirror_abs
+                eff_arr[5] = 1. - g.ref_arr[5] - (1. - np.exp(-2.*pi*freq_c/c*g.d_filter*g.n_filter*g.losstan_filter))
+                eff_arr[6] = 1. - g.ref_arr[6]
+                eff_arr[7] = 1. - g.ref_arr[7]
+                emiss_arr[0] = g.emiss_arr[0]
+                emiss_arr[1] = 1. - np.exp(-2.*pi*freq_c/c*g.d_lens*g.n_hwp*g.losstan_hwp)
+                emiss_arr[2] = g.emiss_arr[2]
+                emiss_arr[3] = g.mirror_abs
+                emiss_arr[4] = g.mirror_abs
+                emiss_arr[5] = 1. - np.exp(-2.*pi*freq_c/c*g.d_filter*g.n_filter*g.losstan_filter)
+                emiss_arr[6] = g.emiss_arr[6]
+                emiss_arr[7] = g.emiss_arr[7]
+
 
             if g.option_proposal == 'US_MO_HFT':
                 eff_arr[0] = 1. - g.ref_arr[0]
@@ -161,7 +188,7 @@ def mapping_speed( dir_out):
             output_per_dpix = lib_ms.mapping_speed_dfix( d_pixel_mm, Pmax, band_info, num_pix, \
                                                         g.aperture_diameter_mm, emiss_arr, eff_arr, \
                                                         T_fp, T_elements, \
-                                                        g.halfangle_edge_degs )
+                                                         g.halfangle_edge_degs )
  #           print g.eff_arr
 #            sys.exit()
 

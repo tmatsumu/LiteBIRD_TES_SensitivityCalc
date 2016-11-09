@@ -18,7 +18,9 @@ filename_arr = exe_ms.mapping_speed( dir_out)
 f1 = open("../data/"+g.option_proposal+"_par1.txt", "w")
 f2 = open("../data/"+g.option_proposal+"_par2.txt", "w")
 print ''
-print 'Freq [GHz], D_lens [mm], apt., P_load [fW], NEP_ph, NEP_th, NEP_re, NEP_to, NET [uKrts], Npix, NETarr [uKrts], NETarr w/ m [uKrts]'
+#print 'Freq [GHz], D_lens [mm], apt., P_load [fW], NEP_ph, NEP_th, NEP_re, NEP_to, NET [uKrts], Npix, NETarr [uKrts], NETarr w/ m [uKrts]'
+print 'Freq [GHz], D_lens [mm], apt., P_load [fW], NEP_ph, NEP_th, NEP_re, NEP_to, NET [uKrts], Npix, NETarr [uKrts], sensitivity [arcmin/rts]'
+
 
 Ndet_final = []
 num_band = len(filename_arr)
@@ -60,42 +62,70 @@ for i in range(num_band):
 #	if freq_GHz < g.freq_break:
 	ind = np.where((x[0] > g.pixDmm[i]*1e-3-del_x/2.) & (x[0] < g.pixDmm[i]*1e-3+del_x/2.))
 	ind = ind[0]
-	print '  %1d %1.1f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1d %1.3f %1.3f %1.3f' % \
-		(freq_GHz, \
+	#print '  %1d %1.1f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1d %1.3f %1.3f %1.3f' % \
+        print '  %1d %1.1f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1d %1.3f %1.3f %1.3f' % \
+	         (freq_GHz, \
+		 D_lens[ind[0]]*1e3, \
+		 apt_eff[ind[0]], \
+		 P_load[ind[0]]*1e12, \
+		 NEP_ph_w[ind[0]]*1e18, \
+		 NEP_th[ind[0]]*1e18, \
+		 #NEP_readout[ind[0]]*1e18, \
+                 np.sqrt(g.NEP_tot_arr[i]**2. - (NEP_ph_w[ind[0]]*1e18)**2. - (NEP_th[ind[0]]*1e18)**2.),   
+		 #NEP_to_w[ind[0]]*1e18, \
+                 g.NEP_tot_arr[i], \
+		 NET_totalper_w[ind[0]], \
+		 2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i], \
+		 NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i]), \
+		 #NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i])*1.25, \
+                 
+		 #NEP_readout[ind[0]]/Vbias[ind[0]]*1e12)
+                 np.sqrt(4.*pi*g.fsky*2.*(NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i]))**2./g.Tmis_sec)*(10800./pi))
+                
+                        
+	#f2.write( '%1d %1.1f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1d %1.3f %1.3f %1.3f \n' % \
+	f2.write( '%1d %1.1f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1d %1.3f %1.3f %1.3f \n' % \
+                (freq_GHz, \
 		D_lens[ind[0]]*1e3, \
 		apt_eff[ind[0]], \
 		P_load[ind[0]]*1e12, \
 		NEP_ph_w[ind[0]]*1e18, \
 		NEP_th[ind[0]]*1e18, \
-		NEP_readout[ind[0]]*1e18, \
-		NEP_to_w[ind[0]]*1e18, \
+		#NEP_readout[ind[0]]*1e18, \
+                np.sqrt(g.NEP_tot_arr[i]**2. - (NEP_ph_w[ind[0]]*1e18)**2. - (NEP_th[ind[0]]*1e18)**2.),   
+		#NEP_to_w[ind[0]]*1e18, \
+                g.NEP_tot_arr[i], \
 		NET_totalper_w[ind[0]], \
 		2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i], \
 		NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i]), \
-		NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i])*1.25, \
-		NEP_readout[ind[0]]/Vbias[ind[0]]*1e12)
+		#NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i])*1.25, \
+                 
+		#NEP_readout[ind[0]]/Vbias[ind[0]]*1e12)
+                np.sqrt(4.*pi*g.fsky*2.*NET_totalper_w[ind[0]]**2./g.Tmis_sec)*(10800./pi)))
 
-	f2.write( '%1d %1.1f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1.3f %1d %1.3f %1.3f %1.3f \n' % \
-		(freq_GHz, \
-		D_lens[ind[0]]*1e3, \
-		apt_eff[ind[0]], \
-		P_load[ind[0]]*1e12, \
-		NEP_ph_w[ind[0]]*1e18, \
-		NEP_th[ind[0]]*1e18, \
-		NEP_readout[ind[0]]*1e18, \
-		NEP_to_w[ind[0]]*1e18, \
-		NET_totalper_w[ind[0]], \
-		2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i], \
-		NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i]), \
-		NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i])*1.25, \
-		NEP_readout[ind[0]]/Vbias[ind[0]]*1e12))
+		#(freq_GHz, \
+		#D_lens[ind[0]]*1e3, \
+		#apt_eff[ind[0]], \
+		#P_load[ind[0]]*1e12, \
+		#NEP_ph_w[ind[0]]*1e18, \
+		#NEP_th[ind[0]]*1e18, \
+		#NEP_readout[ind[0]]*1e18, \
+                #np.sqrt(g.NEP_tot_arr[i]**2. - NEP_ph_w[ind[0]]**2. - NEP_th[ind[0]]**2.)*1e18, 
+		#NEP_to_w[ind[0]]*1e18, \
+                #g.NEP_tot_arr[i]*1e18, \
+	 
+		#NET_totalper_w[ind[0]], \
+		#2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i], \
+		#NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i]), \
+		#NET_totalper_w[ind[0]]/np.sqrt(2.*Npix[ind[0]]*g.wafer_num[i]-g.stupid_offset[i])*1.25, \
+		#NEP_readout[ind[0]]/Vbias[ind[0]]*1e12))
 
-	eff_arr[2] = apt_eff[ind[0]]
+        eff_arr[2] = apt_eff[ind[0]]
 	num_tmp = len(emiss_arr)
 	print ''
-	print '  %s'  % ('freq_GHz, ref, eff_arr, emiss_arr')
+	#print '  %s'  % ('freq_GHz, ref, eff_arr, emiss_arr') #hasebe comment out
 	for j in range(num_tmp):
-		print '  %1.1f %1.3f %1.3f %1.3f'  % (freq_GHz, g.ref_arr[j], eff_arr[j], emiss_arr[j])
+		#print '  %1.1f %1.3f %1.3f %1.3f'  % (freq_GHz, g.ref_arr[j], eff_arr[j], emiss_arr[j]) #hasebe comment out
 		f1.write('  %1.1f %1.3f %1.3f %1.3f\n'  % (freq_GHz, g.ref_arr[j], eff_arr[j], emiss_arr[j]))
 	f1.write('  \n')
 	print ''

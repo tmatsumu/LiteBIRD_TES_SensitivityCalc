@@ -16,6 +16,7 @@ c = 299792458.
 #; 2013-6-23: change the thermal conductivity as n=3 for 300mK or higher
 #; 2015-12-23: Found a bug in array assignment in mapping_speed 
 #; 2015-12-23: revise significantly 
+#; 2016-11-08: From the independent check by Takashi Hasebe 
 
 def print_specifications(option=True):
     if option == True:
@@ -165,6 +166,22 @@ def pixel_count( pixel_diam, s2s_wafer_size, num_wafer):
     Npix = np.int_(num_wafer*np.sqrt(3.)/2.*s2s_wafer_size**2./6.*pi*np.sqrt(3.)*4./pi/pixel_diam**2)
     return Npix
 
+#--------------------------- new functions 20161101 -------------------------------------
+def HWPEff (d_hwp, n_hwp, losstan_hwp, freq_c, ref_hwp):
+    HWP_emiss = 1. - np.exp(-2.*pi*d_hwp*n_hwp*losstan_hwp*freq_c/c)
+    HWP_eff = 1. - ref_hwp - HWP_emiss
+    return HWP_emiss, HWP_eff
+
+def ApertureEff( dpix, beamwaistfactor, Fnum, freq_c):
+    apt_eff = 1. - np.exp(-1.*pi**2./2.*(dpix/beamwaistfactor/Fnum*freq_c/c)**2.) # aperture efficiency
+    apt_emiss = 1. - apt_eff # aperture emissivity
+    return apt_eff, apt_emiss
+
+def MirrorAbs( freq_c, mu_zero, sigma_c, epsilon_zero):
+    mirror_abs = 4.*np.sqrt(pi*freq_c*mu_zero/sigma_c)/np.sqrt(mu_zero/epsilon_zero)
+    return mirror_abs
+
+
 #;####################################################################################################################################
 
 
@@ -199,11 +216,16 @@ def mapping_speed_dfix(d_pixel_mm, Pmax, band_info, Npix, aperture_diameter_mm, 
 
     num_elements = len(eff_arr)
     eff_loc = np.zeros(num_elements)
+    emiss_loc = np.zeros(num_elements)
     eff_e2e_eae = 1.
 #    print 'system efficiency except aperture eff'
     for i in range(0, num_elements):
         eff_e2e_eae *= eff_arr[i]
         eff_loc[i] = eff_arr[i]
+        emiss_loc[i] = emiss_arr[i]
+
+  
+
 #        if d_pixel_mm == 18: print '->', eff_loc[i], eff_arr[i], eff_e2e_eae
 #    print 'e2e except aperture eff',  eff_e2e_eae 
 #; define the basic parameters
@@ -220,9 +242,26 @@ def mapping_speed_dfix(d_pixel_mm, Pmax, band_info, Npix, aperture_diameter_mm, 
     output = np.zeros(40)
 #    sigma_0, Tedge_dB, apt_eff = aperture(D_lens,freq_c,halfangle_edge_degs)
     sigma_0, Tedge_dB, apt_eff = aperture_beamwaistfactor(D_lens,freq_c,halfangle_edge_degs,g.beamwaistfactor)
-
     eff_e2e = eff_e2e_eae*apt_eff
     num_bolo = 2.*Npix
+
+
+ #---------------------------new parameters by takashi--------------------------------------------------------------
+    HWP_emiss, HWP_eff = HWPEff(g.d_hwp, g.n_hwp, g.losstan_hwp, freq_c, g.ref_arr[1])
+    apt_eff2, apt_emiss = ApertureEff(D_lens, g.beamwaistfactor, g.Fnum, freq_c)
+    mirror_abs = MirrorAbs( freq_c, g.mu_zero, g.sigma_c, g.epsilon_zero)
+    mirror_eff = 1.- mirror_abs
+    mirror_emiss = mirror_abs
+    filter_emiss, filter_eff = HWPEff(g.d_filter, g.n_filter, g.losstan_filter, freq_c, g.ref_arr[5])
+    lens_emiss, lens_eff = HWPEff(g.d_lens, g.n_lens, g.losstan_lens, freq_c, g.ref_arr[6])
+    det_eff = 1.-g.ref_arr[7]
+
+ 
+ #-------------------------- with reflection effect-----------------------------------------------------------------
+    HWP_emiss_ref = HWP_emiss + g.ref_arr[1]* flux(freq_c, g.T_ref_arr[2]) / flux(freq_c, T_hwp)
+    filter_emiss_ref = filter_emiss + g.ref_arr[5]* flux(freq_c, g.T_ref_arr[5]) / flux(freq_c, T_fil)
+    lens_emiss_ref = lens_emiss + g.ref_arr[6]* flux(freq_c, g.T_ref_arr[6]) / flux(freq_c, T_lenslet)
+    
 #;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #; OPTICAL LOADING AND NEP_optical
  
@@ -313,43 +352,80 @@ def mapping_speed_dfix(d_pixel_mm, Pmax, band_info, Npix, aperture_diameter_mm, 
     F_Jupiter = flux(freq,1.86)
     P_jupiter = 0.5*np.sum(A_omega*BB*(freq[num-1]-freq[0])/float(num)) #;*eff_opt
 
+    eff_loc[0] = 1.
+    eff_loc[1] = HWP_eff
+    emiss_loc[1] = HWP_emiss_ref
+   # emiss_loc[1] = HWP_emiss # no reflection
     eff_loc[2] = apt_eff
+    emiss_loc[2] = apt_emiss
+    eff_loc[3] = mirror_eff
+    emiss_loc[3] = mirror_abs
+    eff_loc[4] = mirror_eff
+    emiss_loc[4] = mirror_abs
+   # emiss_loc[5] = filter_emiss # no reflection
+    eff_loc[5] = filter_eff
+    emiss_loc[5] = filter_emiss_ref
+   # emiss_loc[6] = lens_emiss # no reflection
+    eff_loc[6] = lens_eff
+    emiss_loc[6] = lens_emiss_ref
+    eff_loc[7] = det_eff
 
+
+    
+    
     F_sum =   ( F_cmb     * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  F_hwp      * emiss_arr[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  F_aperture * emiss_arr[2] *(1.-eff_loc[2])      *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  F_mir1     * emiss_arr[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  F_mir2     * emiss_arr[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  F_1Kfilter * emiss_arr[5]                                                        *eff_loc[6]*eff_loc[7] \
-            +  F_lenslet  * emiss_arr[6]                                                                   *eff_loc[7] )
+            +  F_hwp      * emiss_loc[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  F_aperture * emiss_loc[2]                       *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  F_mir1     * emiss_loc[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  F_mir2     * emiss_loc[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  F_1Kfilter * emiss_loc[5]                                                        *eff_loc[6]*eff_loc[7] \
+            +  F_lenslet  * emiss_loc[6]                                                                   *eff_loc[7] )
 
     F2_sum =  ( F_cmb      * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
-            + ( F_hwp      * emiss_arr[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
-            + ( F_aperture * emiss_arr[2] *(1.-eff_loc[2])      *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
-            + ( F_mir1     * emiss_arr[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
-            + ( F_mir2     * emiss_arr[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
-            + ( F_1Kfilter * emiss_arr[5]                                                        *eff_loc[6]*eff_loc[7] )**2 \
-            + ( F_lenslet  * emiss_arr[6]                                                                   *eff_loc[7] )**2
-
+            + ( F_hwp      * emiss_loc[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
+            + ( F_aperture * emiss_loc[2]                       *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
+            + ( F_mir1     * emiss_loc[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
+            + ( F_mir2     * emiss_loc[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] )**2 \
+            + ( F_1Kfilter * emiss_loc[5]                                                        *eff_loc[6]*eff_loc[7] )**2 \
+            + ( F_lenslet  * emiss_loc[6]                                                                   *eff_loc[7] )**2
 
     P_load = 0.5 \
-            * ( P_cmb     * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_hwp      * emiss_arr[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_aperture * emiss_arr[2] *(1.-eff_loc[2])      *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_mir1     * emiss_arr[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_mir2     * emiss_arr[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_1Kfilter * emiss_arr[5]                                                        *eff_loc[6]*eff_loc[7] \
-            +  P_lenslet  * emiss_arr[6]                                                        *eff_loc[6]*eff_loc[7] )
+              * ( P_cmb     * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_hwp      * emiss_loc[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_aperture * emiss_loc[2]                       *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_mir1     * emiss_loc[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_mir2     * emiss_loc[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_1Kfilter * emiss_loc[5]                                                        *eff_loc[6]*eff_loc[7] \
+            +  P_lenslet  * emiss_loc[6]                                                        *eff_loc[6]*eff_loc[7] )
 
     P_load_nominal = 0.5 \
             * ( P_cmb     * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_hwp      * emiss_arr[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_aperture * emiss_arr[2] *(1.-eff_loc[2])      *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_mir1     * emiss_arr[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_mir2     * emiss_arr[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
-            +  P_1Kfilter * emiss_arr[5]                                                        *eff_loc[6]*eff_loc[7] \
-            +  P_lenslet  * emiss_arr[6]                                                        *eff_loc[6]*eff_loc[7] )
+            +  P_hwp      * emiss_loc[1]            *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_aperture * emiss_loc[2]                       *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_mir1     * emiss_loc[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_mir2     * emiss_loc[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
+            +  P_1Kfilter * emiss_loc[5]                                                        *eff_loc[6]*eff_loc[7] \
+            +  P_lenslet  * emiss_loc[6]                                                        *eff_loc[6]*eff_loc[7] )
 
+#    P_load = 0.5 \
+#            * ( P_cmb     * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_hwp      * HWP_emiss               *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_aperture * emiss_loc[2]                       *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_mir1     * emiss_loc[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_mir2     * emiss_loc[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_1Kfilter * filter_emiss                                                        *eff_loc[6]*eff_loc[7] \
+#            +  P_lenslet  * lens_emiss                                                          *eff_loc[6]*eff_loc[7] )
+
+#    P_load_nominal = 0.5 \
+#            * ( P_cmb     * emiss_arr[0] *eff_loc[1]*eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_hwp      * HWP_emiss               *eff_loc[2]*eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_aperture * emiss_loc[2]                       *eff_loc[3]*eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_mir1     * emiss_loc[3]                                  *eff_loc[4]*eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_mir2     * emiss_loc[4]                                             *eff_loc[5]*eff_loc[6]*eff_loc[7] \
+#            +  P_1Kfilter * filter_emiss                                                        *eff_loc[6]*eff_loc[7] \
+#            +  P_lenslet  * lens_emiss                                                          *eff_loc[6]*eff_loc[7] )
+
+  
     # F_sum = eff_loc[6]*eff_loc[5] \
     #      *(F_cmb*apt_eff_arr*eff_loc[0]*emiss[0] *eff_loc[1]*eff_loc[3]*eff_loc[4] \
     #        +F_hwp*apt_eff_arr*eff_loc[1]*emiss[1] *eff_loc[3]*eff_loc[4] \
@@ -408,21 +484,29 @@ def mapping_speed_dfix(d_pixel_mm, Pmax, band_info, Npix, aperture_diameter_mm, 
         * ((T_bolo/T_bath)**(2.*n_tc+3)-1.) / ((T_bolo/T_bath)**(n_tc+1)-1.)**2 
 
     NEP_th = np.sqrt(NEP_th_2)
+
+    bolo_factor = np.sqrt(4.*g.k_b*X_fac*T_bath   \
+        * (n_tc+1.)**2/(2.*n_tc+3.)  \
+                          * ((T_bolo/T_bath)**(2.*n_tc+3)-1.) / ((T_bolo/T_bath)**(n_tc+1)-1.)**2) 
+
+    NEP_to_w = 9.06e-18 
+    NEP_to_wo = 1.
 #;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #; READOUT NOISE
     R_bolo = 1.
     Vbias = np.sqrt((X_fac-1.)*R_bolo*P_load_max)
-    NEP_readout = np.sqrt(NEP_ph_w**2. + NEP_th**2.)*np.sqrt(1.1**2-1.)
+   # NEP_readout = np.sqrt(NEP_ph_w**2. + NEP_th**2.)*np.sqrt(1.1**2-1.) # if you assume NEP_read is 10% of NEP_total, use this line
 #    NEP_readout = g.current_noise*Vbias
-
-#;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    NEP_readout = np.sqrt(NEP_to_w**2. - NEP_ph_w**2. - NEP_th**2. ) # CSR
+   #;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #; NEP_total     
 #    NEP_to_w = np.sqrt(NEP_ph_w**2. + NEP_th**2. + NEP_readout**2.)    #  ;*np.sqrt(2.)
 #    NEP_to_wo = np.sqrt(NEP_ph_wo**2. + NEP_th**2. + NEP_readout**2.)  #  ;*np.sqrt(2.)
-    NEP_to_w = np.sqrt(NEP_ph_w**2. + NEP_th**2.)*1.1    #  ;*np.sqrt(2.)
-    NEP_to_wo = np.sqrt(NEP_ph_wo**2. + NEP_th**2.)*1.1  #  ;*np.sqrt(2.)
+#    NEP_to_w = np.sqrt(NEP_ph_w**2. + NEP_th**2.)*1.1    #  ;*np.sqrt(2.) # if you assume NEP_read is 10% of NEP_total, use this line
+#    NEP_to_wo = np.sqrt(NEP_ph_wo**2. + NEP_th**2.)*1.1  #  ;*np.sqrt(2.) # if you assume NEP_read is 10% of NEP_total, use this line
 
 #;+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 #; SUMMARY and PRINT
 #     
 #; convert from NEP to NET
@@ -434,8 +518,22 @@ def mapping_speed_dfix(d_pixel_mm, Pmax, band_info, Npix, aperture_diameter_mm, 
     NET_totalper_wo = NEP2NET_CMB(NEP_to_wo,freq,A_omega,eff_e2e)*1.e6
     NEQ_total_w = (np.sqrt(2.)*NET_totalper_w)/np.sqrt(float(Npix))
     NEQ_total_wo = (np.sqrt(2.)*NET_totalper_wo)/np.sqrt(float(Npix))
-
-#     if d_pixel_mm == 18:
+   
+    if d_pixel_mm == 18:
+        print 'CMB_eff=',g.eff_arr[0], 'CMB_emiss=',emiss_arr[0], 'CMB_ref=',g.ref_arr[0]
+        print 'HWP_eff=',eff_loc[1], 'HWP_emiss=',emiss_loc[1], 'HWP_ref=',g.ref_arr[1]
+        print 'apt_eff=',eff_loc[2], 'apt_emiss=',emiss_loc[2], 'apt_ref=',g.ref_arr[2]
+        print 'mirror1_eff=',eff_loc[3], 'mirror1_emiss=',emiss_loc[3]  
+        print 'mirror2_eff=',eff_loc[4], 'mirror2_emiss=',emiss_loc[4] 
+        print 'filter_eff=',eff_loc[5], 'filter_emiss=',emiss_loc[5], 'filter_ref=',g.ref_arr[5]
+        print 'lens_eff=',eff_loc[6], 'lens_emiss=',emiss_loc[6], 'lens_ref=',g.ref_arr[6]
+        print 'det_eff=',eff_loc[7], 'det_ref=',g.ref_arr[7]
+       # print 'T_bolo=',T_bolo,'T_bath=',T_bath
+       # print 'p_load_max=',P_load_max*1.0e-12
+       # print 'bolo_factor=',bolo_factor
+       # print 'eff_e2e=',eff_e2e
+#
+#        print 'NEP_to_w=',NEP_to_w, 'freq=',freq, 'A_omega',A_omega, 'eff_e2e',eff_e2e
 #         print freq_GHz
 #         print ''
 #         print P_cmb*1e12, P_hwp*1e12, P_aperture*1e12, P_mir1*1e12, P_mir2*1e12, P_1Kfilter*1e12
@@ -504,7 +602,9 @@ def mapping_speed_dfix(d_pixel_mm, Pmax, band_info, Npix, aperture_diameter_mm, 
             'NEQ_total_w': NEQ_total_w, \
             'NEQ_total_wo': NEQ_total_wo, \
             'NEP2NET_CMB': NEP2NET_CMB(1.,freq,A_omega,eff_e2e)*1.e6, \
-            'eff_e2e_eae': eff_e2e_eae} 
+            'eff_e2e_eae': eff_e2e_eae}
+
+  
 #            'eff_loc': eff_loc, \
 #            'emiss_arr': emiss_arr }
 #            'help': 'freq_c,freq_i,freq_f,bandwidth,mean_AOmega,apt_eff,T_mir1,T_mir2,Npix,D_lens,Pmax,P_cmb,P_hwp,P_aperture,P_mir1,P_mir2,P_1Kfilter,P_100mK,P_jupiter,P_load,T_bath,n_tc,T_bolo,gamma,X_fac,Gave,NEP_ph_wo,NEP_ph_w,NEP_th,NEP_readout,NEP_to_w,NEP_to_wo,NET_photon_w,NET_photon_wo,NET_detect,NET_readout,NET_totalper_w,NET_totalper_wo,NEQ_total_w,NEQ_total_wo,NEP2NET_CMB,eff_e2e_eae'}
