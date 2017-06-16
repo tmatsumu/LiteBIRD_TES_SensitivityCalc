@@ -58,7 +58,8 @@ if option_proposal == 'US_MO_LFT':
         
 
 	Fnum = 3.5
-	halfangle_edge_degs = np.arcsin(0.5/Fnum) *180./np.pi  # F/#=3.5
+#	halfangle_edge_degs = np.arcsin(0.5/Fnum) *180./np.pi  # F/#=3.5
+	halfangle_edge_degs = np.arctan(0.5/Fnum) *180./np.pi  # F/#=3.5
 	beamwaistfactor = 2.6
 	wafer_size = 80.e-3
 	aperture_diameter_mm = 400.
@@ -91,7 +92,8 @@ if option_proposal == 'US_MO_HFT':
 	ref_arr = [0., 0.02, 0.,      0.02, 0.02, 0.02, 0., 0.3]
 #	halfangle_edge_degs = 12.804   # F/#=2.2
 	Fnum = 2.2
-	halfangle_edge_degs = np.arcsin(0.5/Fnum) *180./np.pi
+#	halfangle_edge_degs = np.arcsin(0.5/Fnum) *180./np.pi
+	halfangle_edge_degs = np.arctan(0.5/Fnum) *180./np.pi
 	beamwaistfactor = 3.1
 	wafer_size = 30.e-3
 	aperture_diameter_mm = 200.
